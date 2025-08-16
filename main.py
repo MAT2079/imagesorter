@@ -60,6 +60,7 @@ class Project:
             "root": str(self.root),
             "settings": self.settings,
         }
+        ensure_dir(self.root)
         self.meta_path.write_text(json.dumps(d, indent=2))
 
     def init_folders(self):
@@ -313,7 +314,11 @@ class App(Tk):
             dst = unique_path(dst_dir / f"{new_stem}{ext}")
             # atomic-ish save
             tmp = dst.with_suffix(dst.suffix + ".tmp")
-            img.save(tmp)
+            # Get the format from the original extension to avoid PIL format detection issues
+            format_map = {'.jpg': 'JPEG', '.jpeg': 'JPEG', '.png': 'PNG', '.bmp': 'BMP', 
+                         '.webp': 'WEBP', '.tif': 'TIFF', '.tiff': 'TIFF'}
+            img_format = format_map.get(ext.lower(), 'JPEG')
+            img.save(tmp, format=img_format)
             os.replace(tmp, dst)
             # remove original
             try:
@@ -351,5 +356,26 @@ class App(Tk):
 
         load_first()
 
+def startup_check():
+    # Ensure main root exists
+    ensure_dir(PROJECTS_ROOT)
+
+    # Iterate through projects
+    for proj_root in PROJECTS_ROOT.iterdir():
+        if not (proj_root / "project.json").exists():
+            continue  # skip non-projects
+        try:
+            proj = Project(proj_root)
+        except Exception as e:
+            print(f"Warning: failed to load {proj_root}: {e}")
+            continue
+        # Ensure required class folders
+        for c in proj.classes:
+            ensure_dir(proj_root / c)
+        # Ensure special folders
+        ensure_dir(proj_root / "_trash")
+        ensure_dir(proj_root / "_thumbnails")
+
 if __name__ == "__main__":
+    startup_check()
     App().mainloop()
